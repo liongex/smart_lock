@@ -13,6 +13,8 @@
 #include "driver_keypad.h"
 #include "driver_rfid.h"
 
+#include "auth_manager.h"
+
 // TODO: Confirme se o pino do PIR está no GPIO 4 na sua bancada
 #define PIR_GPIO GPIO_NUM_4 
 
@@ -157,4 +159,7 @@ void rtos_system_init(void)
     // Obs: A tarefa da varredura do RFID já é criada internamente pela biblioteca 'abobija'
     xTaskCreate(task_power_management, "Power_Mgr",   3072, NULL, 6, &power_task_handle);
     xTaskCreate(task_keypad_scan,      "Keypad_Scan", 2048, NULL, 5, NULL);
+
+    // NOVO: Inicializa a máquina de estados da autenticação!
+    auth_manager_init(q_rfid_uid, q_keypad_char);
 }
