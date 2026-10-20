@@ -12,6 +12,7 @@
 #include "driver_pir.h"
 #include "driver_keypad.h"
 #include "driver_rfid.h"
+#include "driver_servo.h"
 
 #include "auth_manager.h"
 
@@ -154,6 +155,9 @@ void rtos_system_init(void)
     
     // Injeta a função callback dentro do driver SPI do RC522
     rfid_hw_init(on_card_scanned); 
+    
+    // NOVO: Inicializa o PWM do servo motor
+    servo_hw_init();
 
     // 3. Cria as Tarefas de Sistema
     // Obs: A tarefa da varredura do RFID já é criada internamente pela biblioteca 'abobija'

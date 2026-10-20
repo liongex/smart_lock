@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "auth_manager.h"
+#include "driver_servo.h"
 
 static const char *TAG = "AUTH_LOGIC";
 
@@ -98,8 +99,14 @@ void task_auth_logic(void *pvParameters)
                 ESP_LOGI(TAG, "     ACESSO LIBERADO! Porta Aberta   ");
                 ESP_LOGI(TAG, "*************************************");
                 
-                // NO FUTURO: Aqui acionaremos o Relé / Solenoide da fechadura
-                vTaskDelay(pdMS_TO_TICKS(3000)); // Simula porta aberta por 3 segundos
+                // NOVO: Gira o servo para 180º abrindo a tranca
+                servo_unlock();
+                
+                // Mantém aberto por 3 segundos (tempo para a pessoa empurrar a porta)
+                vTaskDelay(pdMS_TO_TICKS(3000)); 
+                
+                // NOVO: Volta o servo para 0º trancando a porta
+                servo_lock();
                 
                 ESP_LOGI(TAG, "Porta trancada novamente.");
             } else {
