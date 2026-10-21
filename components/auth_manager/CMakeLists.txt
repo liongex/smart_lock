@@ -1,3 +1,3 @@
 idf_component_register(SRCS "auth_manager.c"
                        INCLUDE_DIRS "include"
-                       REQUIRES freertos driver_servo)
+                       REQUIRES freertos driver_servo driver_display)

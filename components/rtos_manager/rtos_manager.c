@@ -15,6 +15,7 @@
 #include "driver_servo.h"
 
 #include "auth_manager.h"
+#include "driver_display.h"
 
 // TODO: Confirme se o pino do PIR está no GPIO 4 na sua bancada
 #define PIR_GPIO GPIO_NUM_4 
@@ -73,36 +74,25 @@ void on_card_scanned(uint64_t uid)
 void task_power_management(void *pvParameters)
 {
     while (1) {
-        ESP_LOGI(TAG, "Configurando Wake-up e entrando em Light Sleep...");
-        
-        // Dá um pequeno atraso para os logs terminarem de ser enviados ao PC
+        ESP_LOGI(TAG, "Entrando em Light Sleep...");
         vTaskDelay(pdMS_TO_TICKS(100)); 
         
-        // 1. Prepara periféricos para dormir
-        rfid_hw_pause(); // Congela a tarefa do rc522 e corta energia no pino RST
+        rfid_hw_pause(); 
+        display_power_off(); // NOVO: Desliga a tela para poupar bateria!
         
-        // 2. Configura a interrupção do PIR para acordar o ESP32 em nível ALTO
         gpio_wakeup_enable(PIR_GPIO, GPIO_INTR_HIGH_LEVEL);
         esp_sleep_enable_gpio_wakeup();
-        
-        // ----- A CPU PARA NESTA LINHA ATÉ O PIR DETECTAR MOVIMENTO -----
         esp_light_sleep_start();
+        gpio_wakeup_disable(PIR_GPIO);
         
-        // ----- O ESP32 ACORDA AQUI -----
-        gpio_wakeup_disable(PIR_GPIO); // Desativa para não gerar interrupção à toa
+        display_power_on(); // NOVO: Liga a tela
+        // NOVO: Mensagem inicial ao detectar movimento
+        display_show_message("SISTEMA ATIVO", "Aproxime o Cartao"); 
+        rfid_hw_resume(); 
         
-        // 3. Acorda periféricos
-        rfid_hw_resume(); // Restaura energia do rc522 e retoma tarefa interna dele
-        
-        ESP_LOGI(TAG, "Sistema Acordou! Movimento detectado.");
-        
-        // 4. Sinaliza para a task do teclado que ela pode voltar a varrer os pinos
+        ESP_LOGI(TAG, "Sistema Acordou!");
         xEventGroupSetBits(system_events, BIT_SYSTEM_AWAKE);
-        
-        // 5. Inicia (ou reseta) o timer de inatividade
         xTimerStart(sleep_timer, 0);
-        
-        // 6. Bloqueia esta tarefa de energia até o Timer estourar e enviar a notificação
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     }
 }
@@ -158,6 +148,7 @@ void rtos_system_init(void)
     
     // NOVO: Inicializa o PWM do servo motor
     servo_hw_init();
+    display_hw_init();
 
     // 3. Cria as Tarefas de Sistema
     // Obs: A tarefa da varredura do RFID já é criada internamente pela biblioteca 'abobija'

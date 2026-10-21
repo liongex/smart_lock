@@ -4,6 +4,7 @@
 #include "freertos/task.h"
 #include "auth_manager.h"
 #include "driver_servo.h"
+#include "driver_display.h"
 
 static const char *TAG = "AUTH_LOGIC";
 
@@ -33,14 +34,8 @@ void task_auth_logic(void *pvParameters)
     int user_index = -1;
 
     while (1) {
-        // ESTADO 1: OCIOSO (Aguardando um cartão RFID)
-        // Fica bloqueado aqui infinitamente sem gastar CPU até chegar um UID na fila
         if (xQueueReceive(q_rfid, &current_uid, portMAX_DELAY) == pdTRUE) {
             
-            ESP_LOGI(TAG, "====================================");
-            ESP_LOGI(TAG, "Tentativa de acesso. UID lido: %llu", current_uid);
-
-            // Verifica se o cartão existe no nosso banco de dados
             user_index = -1;
             for (int i = 0; i < NUM_USERS; i++) {
                 if (valid_users[i].uid == current_uid) {
@@ -50,72 +45,61 @@ void task_auth_logic(void *pvParameters)
             }
 
             if (user_index == -1) {
-                ESP_LOGW(TAG, "Cartao NAO CADASTRADO. Acesso Negado.");
-                continue; // Volta para o Estado 1 (aguardar outro cartão)
+                display_show_message("ACESSO NEGADO", "Cartao Invalido!");
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                display_show_message("SISTEMA ATIVO", "Aproxime o Cartao");
+                continue; 
             }
 
-            // ESTADO 2: AGUARDANDO SENHA
-            ESP_LOGI(TAG, "Cartao Reconhecido! Digite o PIN de 4 digitos:");
+            display_show_message("CARTAO LIDO", "Digite o PIN:");
             pin_index = 0;
-            memset(input_pin, 0, sizeof(input_pin)); // Limpa o buffer da senha
-            
-            // Limpa qualquer tecla que a pessoa tenha digitado antes de passar o cartão
+            memset(input_pin, 0, sizeof(input_pin)); 
             xQueueReset(q_keypad); 
 
             bool timeout = false;
             
-            // Fica num loop aguardando 4 teclas
             while (pin_index < 4) {
                 char key;
-                // Aguarda até 10 segundos para a pessoa apertar uma tecla.
                 if (xQueueReceive(q_keypad, &key, pdMS_TO_TICKS(10000)) == pdTRUE) {
                     
                     if (key == '*') {
-                        // Mantemos o asterisco exclusivo como botão de "Corrigir/Limpar"
                         pin_index = 0;
-                        ESP_LOGI(TAG, "Digitacao cancelada. Digite o PIN novamente:");
-                        
+                        display_show_message("CARTAO LIDO", "Digite o PIN:");
                     } else { 
-                        // Aceita números (0-9), letras (A-D) e até a cerquilha (#)
                         input_pin[pin_index] = key;
                         pin_index++;
-                        ESP_LOGI(TAG, "Tecla registrada (*). Faltam %d", 4 - pin_index);
+                        
+                        // Cria a animação de asteriscos (ex: "***")
+                        char pin_stars[5] = {0};
+                        for (int i = 0; i < pin_index; i++) pin_stars[i] = '*';
+                        display_show_message("Digite o PIN:", pin_stars);
                     }
-                    
                 } else {
-                    ESP_LOGW(TAG, "Timeout! Demorou muito para digitar. Cancelando...");
                     timeout = true;
                     break;
                 }
             }
 
             if (timeout) {
-                continue; // Volta para o Estado 1
+                display_show_message("TEMPO ESGOTADO", "Cancelado.");
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                display_show_message("SISTEMA ATIVO", "Aproxime o Cartao");
+                continue; 
             }
 
-            // ESTADO 3: VERIFICAÇÃO DO DUPLO FATOR
             if (strcmp(input_pin, valid_users[user_index].pin) == 0) {
-                ESP_LOGI(TAG, "*************************************");
-                ESP_LOGI(TAG, "     ACESSO LIBERADO! Porta Aberta   ");
-                ESP_LOGI(TAG, "*************************************");
-                
-                // NOVO: Gira o servo para 180º abrindo a tranca
+                display_show_message("ACESSO LIBERADO", "Porta Aberta!");
                 servo_unlock();
-                
-                // Mantém aberto por 3 segundos (tempo para a pessoa empurrar a porta)
                 vTaskDelay(pdMS_TO_TICKS(3000)); 
-                
-                // NOVO: Volta o servo para 0º trancando a porta
                 servo_lock();
-                
-                ESP_LOGI(TAG, "Porta trancada novamente.");
+                display_show_message("SISTEMA ATIVO", "Aproxime o Cartao");
             } else {
-                ESP_LOGW(TAG, "PIN INCORRETO. Acesso Negado.");
+                display_show_message("ACESSO NEGADO", "PIN Incorreto!");
+                vTaskDelay(pdMS_TO_TICKS(2000));
+                display_show_message("SISTEMA ATIVO", "Aproxime o Cartao");
             }
             
-            // Limpa a fila caso o usuário tenha apertado teclas extras após a 4ª tecla
             xQueueReset(q_keypad);
-            ESP_LOGI(TAG, "====================================");
         }
     }
 }

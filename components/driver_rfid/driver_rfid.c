@@ -9,7 +9,7 @@ static const char *TAG = "RFID_DRV";
 #define PIN_NUM_MOSI 23
 #define PIN_NUM_CLK  18
 #define PIN_NUM_CS   5
-#define PIN_NUM_RST  22 
+#define PIN_NUM_RST  17 
 
 static rc522_handle_t scanner;
 static rfid_scanned_cb_t app_callback = NULL;
