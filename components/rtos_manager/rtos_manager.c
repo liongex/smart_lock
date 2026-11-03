@@ -148,6 +148,8 @@ void rtos_system_init(void)
     
     // NOVO: Inicializa o PWM do servo motor
     servo_hw_init();
+    
+    // Inicializa o Display Oled
     display_hw_init();
 
     // 3. Cria as Tarefas de Sistema
